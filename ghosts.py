@@ -16,15 +16,15 @@ except ValueError as e:
 
 def flux_data(plate, mjd, fiber):
     """
-    Return arrays with flux information for given fiber and adjacent fibers.
+    Return flux information for given fiber and adjacent fibers.
     
-    Parameters:
-    plate (int)
-    mjd (int)
-    fiber: int
+    Args:
+        plate (int): Plate number
+        mjd (int): Modified Julian Date of observation
+        fiber(int): Fiber with large enough flux to create ghosts
     
-    Return:
-    GhostSet
+    Returns:
+        gset.GhostSet: flux information for given fiber and adjacent fibers.
     """
     
     g = valid_fiber(fiber)
@@ -41,29 +41,29 @@ def flux_data(plate, mjd, fiber):
         f_high = np.vstack((fits_high[1]['flux'][:],fits_high[1]['loglam'][:]))
     
     if g[2]:
-        return gset.GhostSet(g, fiber, f_low, f_mid, f_high)
+        return gset.GhostSet(g, fiber, f_mid, low = f_low, high = f_high)
     elif g[0]:
-        return gset.GhostSet(g, fiber, f_low, f_mid, None)
+        return gset.GhostSet(g, fiber, f_mid, low = f_low)
     else:
-        return gset.GhostSet(g, fiber, None, f_mid, f_high)
+        return gset.GhostSet(g, fiber, f_mid, high = f_high)
         
 def valid_fiber(fiber):
     """
-    Return what fibers may have ghosts
+    Return valid fiber information
     
-    Parameters:
-    fiber: int
+    Args:
+        fiber(int): fiber with flux high enough to create ghosts
     
     Return:
-    valid[bool, bool, bool]
+        [bool]: [Valid fiber less than given, valid fiber greater than given, both valid]
     
-    Raise:
-    InvalidFiberError: fiber not in interval [1,1000]
+    Raises:
+        gset.InvalidFiberError: fiber not an int in interval [1,1000]
     """
     
     valid = [True, True, False]
     if type(fiber) != int:
-        raise ValueError('Fiber number must be an integer between 1 and 1000')
+        raise gset.InvalidFiberError('Fiber number must be an integer between 1 and 1000')
     if fiber < 1 or fiber > 1000:
         raise gset.InvalidFiberError('Fiber number must be an integer between 1 and 1000')
     elif fiber ==  500 or fiber == 1000:
