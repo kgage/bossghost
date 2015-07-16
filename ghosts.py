@@ -73,3 +73,41 @@ def valid_fiber(fiber):
     else:
         valid[2] = True
     return valid
+
+def high_spikes(file_name):
+    """
+    Return fibers with massive spikes
+    
+    Args:
+        file_name(str): path to file or file name if in current directory
+    
+    Returns:
+        dict: {plate-mjd-fiber: maximum flux in fiber} for max flux >= 1000
+    """
+    opened = False
+    good_spikes = {}
+    try:
+        f = open(file_name)
+        opened = True
+        first = f.readline().split()
+        plate_i = first.index('PLATE')
+        mjd_i = first.index('MJD')
+        fiber_i = first.index('FIBER')
+    except:
+        pass
+    else:
+        for line in f:
+            l = line.split()
+            plate = int(l[plate_i])
+            mjd = int(l[mjd_i])
+            fiber = int(l[fiber_i])
+            loc = mirror.get(finder.get_spec_path(plate,mjd,fiber))
+            data = fitsio.read(loc,columns = ['flux'], ext = 1)
+            max_flux = data.astype('float32').max()
+            if max_flux >= 1000:
+                f_str = '{}-{}-{}'.format(plate,mjd,fiber)
+                good_spikes[f_str] = max_flux
+    finally:
+        if opened:
+            f.close()
+    return good_spikes
