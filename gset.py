@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-COEFF = 3.5
+COEFF = 1
 
 class InvalidFiberError(Exception):
     """Raised when a fiber is invalid"""
@@ -29,15 +29,15 @@ class GhostSet:
         self._fiber = fiber
         self._mid_flux = mid[0]
         self._mid_log = mid[1]
-        if self._valid[0] and low != None:
+        if self._valid[0] and not low is None:
             self._low_flux = low[0]
             self._low_log = low[1]
-        elif self._valid[0] and low == None:
+        elif self._valid[0] and low is None:
             raise ValueError('Data required for fiber {}'.format(self._fiber-1))
-        if self._valid[1] and high != None:
+        if self._valid[1] and not high is None:
             self._high_flux = high[0]
             self._high_log = high[1]
-        elif self._valid[0] and high == None:
+        elif self._valid[0] and high is None:
             raise ValueError('Data required for fiber {}'.format(self._fiber+1))
     ######################### pure data extraction #########################
     def fiber(self):
@@ -298,5 +298,4 @@ class Spike(GhostSet):
             pass
         else:
             print(s.format(self.fiber()+1,high))
-        return 
-    
+        return
