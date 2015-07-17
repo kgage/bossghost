@@ -103,10 +103,11 @@ def high_spikes(file_name):
             fiber = int(l[fiber_i])
             loc = mirror.get(finder.get_spec_path(plate,mjd,fiber))
             data = fitsio.read(loc,columns = ['flux'], ext = 1)
-            max_flux = data.astype('float32').max()
-            if max_flux >= 1000:
+            max_i = data.astype('float32').argmax()
+            if (data.astype('float32')[max_i] >= 1000 and
+                data.astype('float32')[max_i - 30] < 500):
                 f_str = '{}-{}-{}'.format(plate,mjd,fiber)
-                good_spikes[f_str] = max_flux
+                good_spikes[f_str] = data.astype('float32')[max_i]
     finally:
         if opened:
             f.close()
