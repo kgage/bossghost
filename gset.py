@@ -94,7 +94,7 @@ class GhostSet:
     def main_wlen(self):
         return 10**self.mid_log()[self.main()]
     ######################### plotting #########################
-    def plt_low(self, sep = True, w_range = all):
+    def plt_low(self, sep = True, w_range = False):
         """
         Plot the lower fiber's spectrum
         
@@ -104,11 +104,11 @@ class GhostSet:
         """
         plt.plot(10**self.low_log(),self.low_flux(),
                  label = 'fiber {}'.format(self.fiber()-1))
-        if w_range != True:
+        if w_range:
             plt.xlim(w_range[0],w_range[1])
         if sep:
             plt.show()
-    def plt_high(self, sep = True, w_range = True):
+    def plt_high(self, sep = True, w_range = False):
         """
         Plot the higher fiber's spectrum
         
@@ -118,11 +118,11 @@ class GhostSet:
         """
         plt.plot(10**self.high_log(),self.high_flux(),
                  label = 'fiber {}'.format(self.fiber()+1))
-        if w_range != True:
+        if w_range:
             plt.xlim(w_range[0],w_range[1])
         if sep:
             plt.show()
-    def plt_mid(self,small = False , coeff = COEFF, sep = True, w_range = True):
+    def plt_mid(self,small = False , coeff = COEFF, sep = True, w_range = False):
         """
         Plot the lower fiber's spectrum
         
@@ -138,11 +138,11 @@ class GhostSet:
         else:
             plt.plot(10**self.mid_log(),self.mid_flux(),
                      label = 'fiber {}'.format(self.fiber()))
-        if w_range != True:
+        if w_range:
                 plt.xlim(w_range[0],w_range[1])
         if sep:
             plt.show()
-    def plt_all(self, small = False, coeff = COEFF, sep = True, w_range = True):
+    def plt_all(self, small = False, coeff = COEFF, sep = True, w_range = False):
         """
         Plot available fiber spectra
         
@@ -299,3 +299,13 @@ class Spike(GhostSet):
         else:
             print(s.format(self.fiber()+1,high))
         return
+    def plt_floor(self,coeff = COEFF):
+        """
+        """
+        plt.plot(10**self.low_log(),self.low_floor(),
+                 label = 'fiber {}'.format(self.fiber()-1))
+        plt.plot(10**self.mid_log(),coeff*10**-3*self.mid_floor(),
+                 label = 'fiber {}'.format(self.fiber()))
+        plt.plot(10**self.high_log(),self.high_floor(),
+                 label = 'fiber {}'.format(self.fiber()+1))
+        plt.show()
