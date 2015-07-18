@@ -17,6 +17,7 @@ class GhostSet:
     Args:
         valid([bool]): [valid low fiber,valid high fiber, both valid]
         fiber(int): fiber with high flux
+        loc(np.array): RA, DEC for all fibers
         mid(np.array): flux and wavelength data on given fiber
         low(np.array): flux and wavelength data on low fiber
         high(np.array): flux and wavelength data on high fiber
@@ -24,19 +25,25 @@ class GhostSet:
     Raises:
         ValueError: data for valid fier not passed in as argument
     """
-    def __init__(self, valid, fiber, mid, low = None, high = None):
+    def __init__(self, valid, fiber, loc, mid, low = None, high = None):
         self._valid = valid
         self._fiber = fiber
         self._mid_flux = mid[0]
         self._mid_log = mid[1]
+        self._mid_sky = mid[2]
+        self._mid_loc = loc[1]
         if self._valid[0] and not low is None:
             self._low_flux = low[0]
             self._low_log = low[1]
+            self._low_sky = low[2]
+            self._low_loc = loc[0]
         elif self._valid[0] and low is None:
             raise ValueError('Data required for fiber {}'.format(self._fiber-1))
         if self._valid[1] and not high is None:
             self._high_flux = high[0]
             self._high_log = high[1]
+            self._high_sky = high[2]
+            self._high_loc = loc[2]
         elif self._valid[0] and high is None:
             raise ValueError('Data required for fiber {}'.format(self._fiber+1))
     ######################### pure data extraction #########################
@@ -72,6 +79,63 @@ class GhostSet:
         else:
             raise InvalidFiberError('No ghost data for fiber {}'.
                                     format(self.fiber()+1))
+    def low_sky(self):
+        if self.valid()[0]:
+            return self._low_sky
+        else:
+            raise InvalidFiberError('No ghost data for fiber {}'.
+                                    format(self.fiber()-1))
+    def mid_sky(self):
+        return self._mid_sky
+    def high_sky(self):
+        if self.valid()[1]:
+            return self._high_sky
+        else:
+            raise InvalidFiberError('No ghost data for fiber {}'.
+                                    format(self.fiber()+1))
+    def low_loc(self):
+        if self.valid()[0]:
+            return self._low_loc
+        else:
+            raise InvalidFiberError('No ghost data for fiber {}'.
+                                    format(self.fiber()-1))
+    def low_ra(self):
+        if self.valid()[0]:
+            return self._low_loc[0]
+        else:
+            raise InvalidFiberError('No ghost data for fiber {}'.
+                                    format(self.fiber()-1))
+    def low_dec(self):
+        if self.valid()[0]:
+            return self._low_loc[1]
+        else:
+            raise InvalidFiberError('No ghost data for fiber {}'.
+                                    format(self.fiber()-1))
+    def mid_loc(self):
+        return self._mid_loc
+    def mid_ra(self):
+        return self._mid_loc[0]
+    def mid_dec(self):
+        return self._mid_loc[1]
+    def high_loc(self):
+        if self.valid()[1]:
+            return self._high_loc
+        else:
+            raise InvalidFiberError('No ghost data for fiber {}'.
+                                    format(self.fiber()+1))
+    def high_ra(self):
+        if self.valid()[1]:
+            return self._high_loc[0]
+        else:
+            raise InvalidFiberError('No ghost data for fiber {}'.
+                                    format(self.fiber()+1))
+    def high_dec(self):
+        if self.valid()[1]:
+            return self._high_loc[1]
+        else:
+            raise InvalidFiberError('No ghost data for fiber {}'.
+                                    format(self.fiber()+1))
+    ######################### simple #########################
     def low_len(self):
         if self.valid()[0]:
             return len(self.low_flux())
@@ -86,6 +150,13 @@ class GhostSet:
         else:
             raise InvalidFiberError('No ghost data for fiber {}'.
                                     format(self.fiber()+1))
+    def distance(self):
+        d = [None,None]
+        if self.valid()[0]:
+            d[0] = np.linalg.norm(self.mid_loc() - self.low_loc())
+        if self.valid()[1]:
+            d[1] = np.linalg.norm(self.mid_loc() - self.high_loc())
+        return d
     ######################### find biggest spike #########################
     def main(self):
         return np.argmax(self.mid_flux())
@@ -94,35 +165,46 @@ class GhostSet:
     def main_wlen(self):
         return 10**self.mid_log()[self.main()]
     ######################### plotting #########################
-    def plt_low(self, sep = True, w_range = False):
+    def plt_low(self, sep = True, w_range = False, sky = False):
         """
         Plot the lower fiber's spectrum
         
         Args:
             sep(bool): True if this plot is seperate from others, False otherwise
             w_range([int]): [min wavelength, max wavelength] in angstroms
+            sky(bool): True if sky flux is to be added to plot
         """
-        plt.plot(10**self.low_log(),self.low_flux(),
+        if sky:
+            flux = self.low_flux() + self.low_sky()
+        else:
+            flux = self.low_flux()
+        plt.plot(10**self.low_log(),flux,
                  label = 'fiber {}'.format(self.fiber()-1))
         if w_range:
             plt.xlim(w_range[0],w_range[1])
         if sep:
             plt.show()
-    def plt_high(self, sep = True, w_range = False):
+    def plt_high(self, sep = True, w_range = False, sky = False):
         """
         Plot the higher fiber's spectrum
         
         Args:
             sep(bool): True if this plot is seperate from others, False otherwise
             w_range([int]): [min wavelength, max wavelength] in angstroms
+            sky(bool): True if sky flux is to be added to plot
         """
-        plt.plot(10**self.high_log(),self.high_flux(),
+        if sky:
+            flux = self.high_flux() + self.high_sky()
+        else:
+            flux = self.high_flux()
+        plt.plot(10**self.high_log(),flux,
                  label = 'fiber {}'.format(self.fiber()+1))
         if w_range:
             plt.xlim(w_range[0],w_range[1])
         if sep:
             plt.show()
-    def plt_mid(self,small = False , coeff = COEFF, sep = True, w_range = False):
+    def plt_mid(self,small = False , coeff = COEFF, sep = True,
+                w_range = False, sky = False):
         """
         Plot the lower fiber's spectrum
         
@@ -131,9 +213,14 @@ class GhostSet:
             coeff(float): coefficiect (multiplier) for ghosting
             sep(bool): True if this plot is seperate from others, False otherwise
             w_range([int]): [min wavelength, max wavelength] in angstroms
+            sky(bool): True if sky flux is to be added to plot
         """
+        if sky:
+            flux = self.mid_flux() + self.mid_sky()
+        else:
+            flux = self.mid_flux()
         if small:
-            plt.plot(10**self.mid_log(),coeff*10**-3*self.mid_flux(),
+            plt.plot(10**self.mid_log(),coeff*10**-3*flux,
                      label = 'fiber {}'.format(self.fiber()))
         else:
             plt.plot(10**self.mid_log(),self.mid_flux(),
@@ -142,7 +229,8 @@ class GhostSet:
                 plt.xlim(w_range[0],w_range[1])
         if sep:
             plt.show()
-    def plt_all(self, small = False, coeff = COEFF, sep = True, w_range = False):
+    def plt_all(self, small = False, coeff = COEFF, sep = True,
+                w_range = False, sky = False):
         """
         Plot available fiber spectra
         
@@ -151,14 +239,16 @@ class GhostSet:
             coeff(float): coefficiect (multiplier) for ghosting
             sep(bool): True if the plots are to be seperate, False otherwise
             w_range([int]): [min wavelength, max wavelength] in angstroms
+            sky(bool): True if sky flux is to be added to plot
         """
         try:
-            self.plt_low(sep = sep, w_range = w_range)
+            self.plt_low(sep = sep, w_range = w_range, sky = sky)
         except InvalidFiberError:
             pass
-        self.plt_mid(small = small, coeff = coeff, sep = sep, w_range = w_range)
+        self.plt_mid(small = small, coeff = coeff, sep = sep,
+                     w_range = w_range, sky = sky)
         try:
-            self.plt_high(sep = sep, w_range = w_range)
+            self.plt_high(sep = sep, w_range = w_range, sky = sky)
         except InvalidFiberError:
             pass
         if not sep:
@@ -210,30 +300,36 @@ class Spike(GhostSet):
         self._fiber = set.fiber()
         self._mid_flux = set.mid_flux()[index-down:index+up+1]
         self._mid_log = set.mid_log()[index-down:index+up+1]
-        self._mid_len = set.mid_len()
+        self._mid_sky = set.mid_sky()[index-down:index+up+1]
+        self._mid_loc = set.mid_loc()
+        self._mid_olen = set.mid_len()
         self._mid_floor = self._mid_flux - self.ground(set.fiber())
         if self._valid[0]:
             self._low_flux = set.low_flux()[index-down:index+up+1]
             self._low_log = set.low_log()[index-down:index+up+1]
-            self._low_len = set.low_len()
+            self._low_sky = set.low_sky()[index-down:index+up+1]
+            self._low_loc = set.low_loc()
+            self._low_olen = set.low_len()
             self._low_floor = self._low_flux - self.ground(set.fiber()-1)
         if self._valid[1]:
             self._high_flux = set.high_flux()[index-down:index+up+1]
             self._high_log = set.high_log()[index-down:index+up+1]
-            self._high_len = set.high_len()
+            self._high_sky = set.high_sky()[index-down:index+up+1]
+            self._high_loc = set.high_loc()
+            self._high_olen = set.high_len()
             self._high_floor = self._high_flux - self.ground(set.fiber()+1)
     ######################### pure data extraction #########################
     def low_olen(self):
         if self.valid()[0]:
-            return self._low_len
+            return self._low_olen
         else:
             raise InvalidFiberError('No ghost data for fiber {}'.
                                     format(self.fiber()-1))
     def mid_olen(self):
-        return self._mid_len
+        return self._mid_olen
     def high_olen(self):
         if self.valid()[1]:
-            return self._high_len
+            return self._high_olen
         else:
             raise InvalidFiberError('No ghost data for fiber {}'.
                                     format(self.fiber()+1))
@@ -301,6 +397,10 @@ class Spike(GhostSet):
         return
     def plt_floor(self,coeff = COEFF):
         """
+        Plot floored graphs
+        
+        Args:
+            coeff(float): coefficient (multiplier) for ghosting
         """
         plt.plot(10**self.low_log(),self.low_floor(),
                  label = 'fiber {}'.format(self.fiber()-1))
@@ -308,4 +408,5 @@ class Spike(GhostSet):
                  label = 'fiber {}'.format(self.fiber()))
         plt.plot(10**self.high_log(),self.high_floor(),
                  label = 'fiber {}'.format(self.fiber()+1))
+        plt.legend()
         plt.show()

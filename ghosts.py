@@ -30,22 +30,34 @@ def flux_data(plate, mjd, fiber):
     g = valid_fiber(fiber)
     
     fits_mid = fitsio.FITS(mirror.get(finder.get_spec_path(plate,mjd,fiber)))
-    f_mid = np.vstack((fits_mid[1]['flux'][:],fits_mid[1]['loglam'][:]))
-    
+    f_mid = np.vstack((fits_mid[1]['flux'][:],
+                       fits_mid[1]['loglam'][:],
+                       fits_mid[1]['sky'][:]))
+    loc_mid = np.concatenate((fits_mid[2]['RA'][:],fits_mid[2]['DEC'][:]))
+    fits_mid.close()
     if g[0]:
         fits_low = fitsio.FITS(mirror.get(finder.get_spec_path(plate,mjd,fiber-1)))
-        f_low = np.vstack((fits_low[1]['flux'][:],fits_low[1]['loglam'][:]))
-        
+        f_low = np.vstack((fits_low[1]['flux'][:],
+                           fits_low[1]['loglam'][:],
+                           fits_low[1]['sky'][:]))
+        loc_low = np.concatenate((fits_low[2]['RA'][:],fits_low[2]['DEC'][:]))
+        fits_low.close()
     if g[1]:
         fits_high = fitsio.FITS(mirror.get(finder.get_spec_path(plate,mjd,fiber+1)))
-        f_high = np.vstack((fits_high[1]['flux'][:],fits_high[1]['loglam'][:]))
-    
+        f_high = np.vstack((fits_high[1]['flux'][:],
+                            fits_high[1]['loglam'][:],
+                            fits_high[1]['sky'][:]))
+        loc_high = np.concatenate((fits_high[2]['RA'][:],fits_high[2]['DEC'][:]))
+        fits_high.close()
     if g[2]:
-        return gset.GhostSet(g, fiber, f_mid, low = f_low, high = f_high)
+        loc = np.vstack((loc_low,loc_mid,loc_high))
+        return gset.GhostSet(g, fiber, loc, f_mid, low = f_low, high = f_high)
     elif g[0]:
-        return gset.GhostSet(g, fiber, f_mid, low = f_low)
+        loc = np.vstack((loc_low,loc_mid,None))
+        return gset.GhostSet(g, fiber, loc, f_mid, low = f_low)
     else:
-        return gset.GhostSet(g, fiber, f_mid, high = f_high)
+        loc = np.vstack((None,loc_mid,loc_high))
+        return gset.GhostSet(g, fiber, loc, f_mid, high = f_high)
         
 def valid_fiber(fiber):
     """
