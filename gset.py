@@ -303,21 +303,27 @@ class Spike(GhostSet):
         self._mid_sky = set.mid_sky()[index-down:index+up+1]
         self._mid_loc = set.mid_loc()
         self._mid_olen = set.mid_len()
-        self._mid_floor = self._mid_flux - self.ground(set.fiber())
+        self._mid_floor = self.mid_flux() - self.ground(self.fiber())
+        self._mid_sfloor = (self.mid_flux() + self.mid_sky()
+                            - self.ground(self.fiber(), sky = True))
         if self._valid[0]:
             self._low_flux = set.low_flux()[index-down:index+up+1]
             self._low_log = set.low_log()[index-down:index+up+1]
             self._low_sky = set.low_sky()[index-down:index+up+1]
             self._low_loc = set.low_loc()
             self._low_olen = set.low_len()
-            self._low_floor = self._low_flux - self.ground(set.fiber()-1)
+            self._low_floor = self.low_flux() - self.ground(self.fiber()-1)
+            self._low_sfloor = (self.low_flux() + self.low_sky()
+                                - self.ground(self.fiber()-1, sky = True))
         if self._valid[1]:
             self._high_flux = set.high_flux()[index-down:index+up+1]
             self._high_log = set.high_log()[index-down:index+up+1]
             self._high_sky = set.high_sky()[index-down:index+up+1]
             self._high_loc = set.high_loc()
             self._high_olen = set.high_len()
-            self._high_floor = self._high_flux - self.ground(set.fiber()+1)
+            self._high_floor = self.high_flux() - self.ground(self.fiber()+1)
+            self._high_sfloor = (self.high_flux() + self.high_sky()
+                                 - self.ground(self.fiber()+1, sky = True))
     ######################### pure data extraction #########################
     def low_olen(self):
         if self.valid()[0]:
@@ -348,8 +354,22 @@ class Spike(GhostSet):
         else:
             raise InvalidFiberError('No ghost data for fiber {}'.
                                     format(self.fiber()+1))
+    def low_sfloor(self):
+        if self.valid()[0]:
+            return self._low_sfloor
+        else:
+            raise InvalidFiberError('No ghost data for fiber {}'.
+                                    format(self.fiber()-1))
+    def mid_sfloor(self):
+        return self._mid_sfloor
+    def high_sfloor(self):
+        if self.valid()[1]:
+            return self._high_sfloor
+        else:
+            raise InvalidFiberError('No ghost data for fiber {}'.
+                                    format(self.fiber()+1))
     ######################### action #########################
-    def ground(self, fiber):
+    def ground(self, fiber, sky = False):
         """
         Return displacement
         
@@ -362,16 +382,23 @@ class Spike(GhostSet):
         Raises:
             InvalidFiberError: fiber given is not one of the fibers contained
         """
-        if fiber == self.fiber()-1:
-            return (self.low_flux()[0] + self.low_flux()[-1]) / 2
+        if fiber == self.fiber()-1 and sky:
+            flux = self.low_flux() + self.low_sky()
+        elif fiber == self.fiber() -1:
+            flux = self.low_flux()
+        elif fiber == self.fiber() and sky:
+            flux = self.mid_flux() + self.mid_sky()
         elif fiber == self.fiber():
-            return (self.mid_flux()[0] + self.mid_flux()[-1]) / 2
+            flux = self.mid_flux()
+        elif fiber == self.fiber()+1 and sky:
+            flux = self.high_flux() + self.high_sky()
         elif fiber == self.fiber()+1:
-            return (self.high_flux()[0] + self.high_flux()[-1]) / 2
+            flux = self.high_flux()
         else:
             raise InvalidFiberError('Must specify fiber {}, {}, or {}'.
                                     format(self.fiber()-1, self.fiber(),
                                            self.fiber()+1))
+        return (flux[0] + flux[-1])/2
     def integrate(self, coeff = COEFF):
         """
         Print integral over floored spike for all fibers
@@ -395,18 +422,26 @@ class Spike(GhostSet):
         else:
             print(s.format(self.fiber()+1,high))
         return
-    def plt_floor(self,coeff = COEFF):
+    def plt_floor(self,coeff = COEFF, sky = False):
         """
         Plot floored graphs
         
         Args:
             coeff(float): coefficient (multiplier) for ghosting
         """
-        plt.plot(10**self.low_log(),self.low_floor(),
-                 label = 'fiber {}'.format(self.fiber()-1))
-        plt.plot(10**self.mid_log(),coeff*10**-3*self.mid_floor(),
-                 label = 'fiber {}'.format(self.fiber()))
-        plt.plot(10**self.high_log(),self.high_floor(),
-                 label = 'fiber {}'.format(self.fiber()+1))
+        if sky:
+            plt.plot(10**self.low_log(),self.low_sfloor(),
+                     label = 'fiber {}'.format(self.fiber()-1))
+            plt.plot(10**self.mid_log(),coeff*10**-3*self.mid_sfloor(),
+                     label = 'fiber {}'.format(self.fiber()))
+            plt.plot(10**self.high_log(),self.high_sfloor(),
+                     label = 'fiber {}'.format(self.fiber()+1))
+        else:
+            plt.plot(10**self.low_log(),self.low_floor(),
+                     label = 'fiber {}'.format(self.fiber()-1))
+            plt.plot(10**self.mid_log(),coeff*10**-3*self.mid_floor(),
+                     label = 'fiber {}'.format(self.fiber()))
+            plt.plot(10**self.high_log(),self.high_floor(),
+                     label = 'fiber {}'.format(self.fiber()+1))
         plt.legend()
         plt.show()
