@@ -18,6 +18,7 @@ class GhostSet:
         valid([bool]): [valid low fiber,valid high fiber, both valid]
         fiber(int): fiber with high flux
         loc(np.array): RA, DEC for all fibers
+        z(np.array): Redshift data for all fibers
         mid(np.array): flux and wavelength data on given fiber
         low(np.array): flux and wavelength data on low fiber
         high(np.array): flux and wavelength data on high fiber
@@ -25,18 +26,20 @@ class GhostSet:
     Raises:
         ValueError: data for valid fier not passed in as argument
     """
-    def __init__(self, valid, fiber, loc, mid, low = None, high = None):
+    def __init__(self, valid, fiber, loc, z, mid, low = None, high = None):
         self._valid = valid
         self._fiber = fiber
         self._mid_flux = mid[0]
         self._mid_log = mid[1]
         self._mid_sky = mid[2]
         self._mid_loc = loc[1]
+        self._mid_z = z[1][0]
         if self._valid[0] and not low is None:
             self._low_flux = low[0]
             self._low_log = low[1]
             self._low_sky = low[2]
             self._low_loc = loc[0]
+            self._low_z = z[0][0]
         elif self._valid[0] and low is None:
             raise ValueError('Data required for fiber {}'.format(self._fiber-1))
         if self._valid[1] and not high is None:
@@ -44,6 +47,7 @@ class GhostSet:
             self._high_log = high[1]
             self._high_sky = high[2]
             self._high_loc = loc[2]
+            self._high_z = z[2][0]
         elif self._valid[0] and high is None:
             raise ValueError('Data required for fiber {}'.format(self._fiber+1))
     ######################### pure data extraction #########################
@@ -111,12 +115,20 @@ class GhostSet:
         else:
             raise InvalidFiberError('No ghost data for fiber {}'.
                                     format(self.fiber()-1))
+    def low_z(self):
+        if self.valid()[0]:
+            return self._low_z
+        else:
+            raise InvalidFiberError('No ghost data for fiber {}'.
+                                    format(self.fiber()-1))
     def mid_loc(self):
         return self._mid_loc
     def mid_ra(self):
         return self._mid_loc[0]
     def mid_dec(self):
         return self._mid_loc[1]
+    def mid_z(self):
+        return self._mid_z
     def high_loc(self):
         if self.valid()[1]:
             return self._high_loc
@@ -135,7 +147,20 @@ class GhostSet:
         else:
             raise InvalidFiberError('No ghost data for fiber {}'.
                                     format(self.fiber()+1))
+    def high_z(self):
+        if self.valid()[1]:
+            return self._high_z
+        else:
+            raise InvalidFiberError('No ghost data for fiber {}'.
+                                    format(self.fiber()+1))
     ######################### simple #########################
+    def all_z(self):
+        z = [None,self.mid_z(),None]
+        if self.valid()[0]:
+            z[0] = self.low_z()
+        if self.valid()[1]:
+            z[2] = self.high_z()
+        return z
     def low_len(self):
         if self.valid()[0]:
             return len(self.low_flux())
@@ -302,28 +327,31 @@ class Spike(GhostSet):
         self._mid_log = set.mid_log()[index-down:index+up+1]
         self._mid_sky = set.mid_sky()[index-down:index+up+1]
         self._mid_loc = set.mid_loc()
+        self._mid_z = set.mid_z()
         self._mid_olen = set.mid_len()
-        self._mid_floor = self.mid_flux() - self.ground(self.fiber())
-        self._mid_sfloor = (self.mid_flux() + self.mid_sky()
-                            - self.ground(self.fiber(), sky = True))
+        self._mid_floor = self.mid_flux() - self.ground(self.mid_flux())
+        self._mid_sfloor = (self.mid_floor() + self.mid_sky()
+                            - self.ground(self.mid_sky()))
         if self._valid[0]:
             self._low_flux = set.low_flux()[index-down:index+up+1]
             self._low_log = set.low_log()[index-down:index+up+1]
             self._low_sky = set.low_sky()[index-down:index+up+1]
             self._low_loc = set.low_loc()
+            self._low_z = set.low_z()
             self._low_olen = set.low_len()
-            self._low_floor = self.low_flux() - self.ground(self.fiber()-1)
-            self._low_sfloor = (self.low_flux() + self.low_sky()
-                                - self.ground(self.fiber()-1, sky = True))
+            self._low_floor = self.low_flux() - self.ground(self.low_flux())
+            self._low_sfloor = (self.low_floor() + self.low_sky()
+                                - self.ground(self.low_sky()))
         if self._valid[1]:
             self._high_flux = set.high_flux()[index-down:index+up+1]
             self._high_log = set.high_log()[index-down:index+up+1]
             self._high_sky = set.high_sky()[index-down:index+up+1]
             self._high_loc = set.high_loc()
+            self._high_z = set.high_z()
             self._high_olen = set.high_len()
-            self._high_floor = self.high_flux() - self.ground(self.fiber()+1)
-            self._high_sfloor = (self.high_flux() + self.high_sky()
-                                 - self.ground(self.fiber()+1, sky = True))
+            self._high_floor = self.high_flux() - self.ground(self.high_flux())
+            self._high_sfloor = (self.high_floor() + self.high_sky()
+                                 - self.ground(self.high_sky()))
     ######################### pure data extraction #########################
     def low_olen(self):
         if self.valid()[0]:
@@ -369,35 +397,16 @@ class Spike(GhostSet):
             raise InvalidFiberError('No ghost data for fiber {}'.
                                     format(self.fiber()+1))
     ######################### action #########################
-    def ground(self, fiber, sky = False):
+    def ground(self, flux):
         """
         Return displacement
         
         Args:
-            fiber(int): number of fiber
+            flux(np.array): flux array
         
         Returns:
             float: amount to subtract from flux array
-            
-        Raises:
-            InvalidFiberError: fiber given is not one of the fibers contained
         """
-        if fiber == self.fiber()-1 and sky:
-            flux = self.low_flux() + self.low_sky()
-        elif fiber == self.fiber() -1:
-            flux = self.low_flux()
-        elif fiber == self.fiber() and sky:
-            flux = self.mid_flux() + self.mid_sky()
-        elif fiber == self.fiber():
-            flux = self.mid_flux()
-        elif fiber == self.fiber()+1 and sky:
-            flux = self.high_flux() + self.high_sky()
-        elif fiber == self.fiber()+1:
-            flux = self.high_flux()
-        else:
-            raise InvalidFiberError('Must specify fiber {}, {}, or {}'.
-                                    format(self.fiber()-1, self.fiber(),
-                                           self.fiber()+1))
         return (flux[0] + flux[-1])/2
     def integrate(self, coeff = COEFF):
         """
