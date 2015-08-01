@@ -431,12 +431,14 @@ class Spike(GhostSet):
         else:
             print(s.format(self.fiber()+1,high))
         return
-    def plt_floor(self,coeff = COEFF, sky = False):
+    def plt_floor(self,coeff = COEFF, sky = False, save = False):
         """
         Plot floored graphs
         
         Args:
             coeff(float): coefficient (multiplier) for ghosting
+            sky(bool): adds sky flux
+            save(str): saves plot to filename given in string
         """
         if sky:
             plt.plot(10**self.low_log(),self.low_sfloor(),
@@ -453,4 +455,6 @@ class Spike(GhostSet):
             plt.plot(10**self.high_log(),self.high_floor(),
                      label = 'fiber {}'.format(self.fiber()+1))
         plt.legend()
+        if save:
+            plt.savefig(save)
         plt.show()
