@@ -280,7 +280,7 @@ class GhostSet:
             plt.legend()
             plt.show()
     ######################### Creating spikes #########################
-    def spike(self, index, down = 30, up = 30):
+    def spike(self, index, g_ind = 5, down = 30, up = 30):
         """
         Create spike object
         
@@ -292,8 +292,8 @@ class GhostSet:
         Returns:
             Spike: flux data around index 
         """
-        return Spike(self,index,down,up)
-    def main_spike(self, down = 30, up = 30):
+        return Spike(self,index,g_ind = g_ind,down = down,up = up)
+    def main_spike(self, g_ind = 5, down = 30, up = 30):
         """
         Create spike object
         
@@ -304,54 +304,65 @@ class GhostSet:
         Returns:
             Spike: flux data around main spike 
         """
-        return Spike(self,self.main(),down,up)
+        return Spike(self,self.main(),g_ind = g_ind,down = down,up = up)
             
 
 #########################  #########################
 ######################### Spike #########################
 #########################  #########################
 class Spike(GhostSet):
-    def __init__(self, set, index, down = 30, up = 30):
+    def __init__(self, gset, index, g_ind = 5, down = 30, up = 30):
         """
         Set flux and loglam arrays for fiber set around a spike
         
         Args:
-            set(GhostSet): set to base flux and loglam information on
+            gset(GhostSet): set to base flux and loglam information on
             index(int): index of flux array where spike is centered
-            down(int): number down from index to start slice
-            up(int): number up from index to end slice
+            g_ind(int): positive number of indexes to use for grounding average
+            down(int): positive number down from index to start slice
+            up(int): positive number up from index to end slice
+        
+        Raises:
+            ValueError: if g_ind is greater than either up or down or if
+                up or down are not positive
         """
-        self._valid = set.valid()
-        self._fiber = set.fiber()
-        self._mid_flux = set.mid_flux()[index-down:index+up+1]
-        self._mid_log = set.mid_log()[index-down:index+up+1]
-        self._mid_sky = set.mid_sky()[index-down:index+up+1]
-        self._mid_loc = set.mid_loc()
-        self._mid_z = set.mid_z()
-        self._mid_olen = set.mid_len()
-        self._mid_floor = self.mid_flux() - self.ground(self.mid_flux())
+        if up <= 0 or down <=0:
+            raise ValueError('Spike requires data on both sides of peak')
+        if g_ind >up or g_ind >down:
+            raise ValueError("Flux can't be grounded if averaging in spike flux")
+        self._valid = gset.valid()
+        self._fiber = gset.fiber()
+        self._mid_flux = gset.mid_flux()[index-down:index+up+1]
+        self._mid_log = gset.mid_log()[index-down:index+up+1]
+        self._mid_sky = gset.mid_sky()[index-down:index+up+1]
+        self._mid_loc = gset.mid_loc()
+        self._mid_z = gset.mid_z()
+        self._mid_olen = gset.mid_len()
+        self._mid_floor = self.mid_flux() - ground(self.mid_flux(),g_ind)
         self._mid_sfloor = (self.mid_floor() + self.mid_sky()
-                            - self.ground(self.mid_sky()))
+                            - ground(self.mid_sky(),g_ind))
         if self._valid[0]:
-            self._low_flux = set.low_flux()[index-down:index+up+1]
-            self._low_log = set.low_log()[index-down:index+up+1]
-            self._low_sky = set.low_sky()[index-down:index+up+1]
-            self._low_loc = set.low_loc()
-            self._low_z = set.low_z()
-            self._low_olen = set.low_len()
-            self._low_floor = self.low_flux() - self.ground(self.low_flux())
+            self._low_flux = gset.low_flux()[index-down:index+up+1]
+            self._low_log = gset.low_log()[index-down:index+up+1]
+            self._low_sky = gset.low_sky()[index-down:index+up+1]
+            self._low_loc = gset.low_loc()
+            self._low_z = gset.low_z()
+            self._low_olen = gset.low_len()
+            self._low_floor = (self.low_flux()
+                               - ground(self.low_flux(),g_ind))
             self._low_sfloor = (self.low_floor() + self.low_sky()
-                                - self.ground(self.low_sky()))
+                                - ground(self.low_sky(),g_ind))
         if self._valid[1]:
-            self._high_flux = set.high_flux()[index-down:index+up+1]
-            self._high_log = set.high_log()[index-down:index+up+1]
-            self._high_sky = set.high_sky()[index-down:index+up+1]
-            self._high_loc = set.high_loc()
-            self._high_z = set.high_z()
-            self._high_olen = set.high_len()
-            self._high_floor = self.high_flux() - self.ground(self.high_flux())
+            self._high_flux = gset.high_flux()[index-down:index+up+1]
+            self._high_log = gset.high_log()[index-down:index+up+1]
+            self._high_sky = gset.high_sky()[index-down:index+up+1]
+            self._high_loc = gset.high_loc()
+            self._high_z = gset.high_z()
+            self._high_olen = gset.high_len()
+            self._high_floor = (self.high_flux()
+                                - ground(self.high_flux(),g_ind))
             self._high_sfloor = (self.high_floor() + self.high_sky()
-                                 - self.ground(self.high_sky()))
+                                 - ground(self.high_sky(),g_ind))
     ######################### pure data extraction #########################
     def low_olen(self):
         if self.valid()[0]:
@@ -397,40 +408,36 @@ class Spike(GhostSet):
             raise InvalidFiberError('No ghost data for fiber {}'.
                                     format(self.fiber()+1))
     ######################### action #########################
-    def ground(self, flux):
+    def integrate(self, coeff = COEFF, print_all = False):
         """
-        Return displacement
-        
-        Args:
-            flux(np.array): flux array
-        
-        Returns:
-            float: amount to subtract from flux array
-        """
-        return (flux[0] + flux[-1])/2
-    def integrate(self, coeff = COEFF):
-        """
-        Print integral over floored spike for all fibers
+        Return integral over floored spike for all fibers
         
         Args:
             coeff(float): coefficient (multiplier) for ghosting
+            print_all(bool): If true, prints results
+        
+        Returns:
+        
         """
         s = "Fiber {:04d}: {:.2f}"
         try:
             low = np.trapz(self.low_floor(), x = 10**self.low_log())
         except InvalidFiberError:
-            pass
+            low = None
         else:
-            print(s.format(self.fiber()-1,low))
+            if print_all:
+                print(s.format(self.fiber()-1,low))
         mid = np.trapz(coeff*10**-3*self.mid_floor(), x = 10**self.mid_log())
-        print(s.format(self.fiber(),mid))
+        if print_all:
+            print(s.format(self.fiber(),mid))
         try:
             high = np.trapz(self.high_floor(), x = 10**self.high_log())
         except InvalidFiberError:
-            pass
+            high = None
         else:
-            print(s.format(self.fiber()+1,high))
-        return
+            if print_all:
+                print(s.format(self.fiber()+1,high))
+        return (low, mid, high)
     def plt_floor(self,coeff = COEFF, sky = False, save = False):
         """
         Plot floored graphs
@@ -458,3 +465,27 @@ class Spike(GhostSet):
         if save:
             plt.savefig(save)
         plt.show()
+    def approx_coeff(self,fiber):
+        """
+        """
+        low,mid,high = self.integrate(coeff=1)
+        if fiber == self.fiber()-1 and not low is None:
+            approx = low/mid
+        elif fiber == self.fiber()+1 and not high is None:
+            approx = high/mid
+        else:
+            raise InvalidFiberError('No data for given fiber')
+        return approx
+        
+def ground(flux, index):
+    """
+    Return displacement
+    
+    Args:
+        flux(np.array): flux array
+        index(int): positive integer of indexes to take from either side
+    
+    Returns:
+        float: amount to subtract from flux array
+    """
+    return ((np.sum(flux[:index]) + np.sum(flux[-index:])) / (2.0*index))
