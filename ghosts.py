@@ -1,5 +1,6 @@
 import bossdata.path
 import bossdata.remote
+import bossdata.spec as spec
 import numpy as np
 import fitsio
 
@@ -27,43 +28,18 @@ def flux_data(plate, mjd, fiber):
         gset.GhostSet: flux information for given fiber and adjacent fibers.
     """
     
-    g = valid_fiber(fiber)
+    valid = valid_fiber(fiber)
     
-    fits_mid = fitsio.FITS(mirror.get(finder.get_spec_path(plate,mjd,fiber)))
-    f_mid = np.vstack((fits_mid[1]['flux'][:],
-                       fits_mid[1]['loglam'][:],
-                       fits_mid[1]['sky'][:]))
-    loc_mid = np.concatenate((fits_mid[2]['RA'][:],fits_mid[2]['DEC'][:]))
-    z_mid = fits_mid[2]['Z'][:]
-    fits_mid.close()
-    if g[0]:
-        fits_low = fitsio.FITS(mirror.get(finder.get_spec_path(plate,mjd,fiber-1)))
-        f_low = np.vstack((fits_low[1]['flux'][:],
-                           fits_low[1]['loglam'][:],
-                           fits_low[1]['sky'][:]))
-        loc_low = np.concatenate((fits_low[2]['RA'][:],fits_low[2]['DEC'][:]))
-        z_low = fits_low[2]['Z'][:]
-        fits_low.close()
-    if g[1]:
-        fits_high = fitsio.FITS(mirror.get(finder.get_spec_path(plate,mjd,fiber+1)))
-        f_high = np.vstack((fits_high[1]['flux'][:],
-                            fits_high[1]['loglam'][:],
-                            fits_high[1]['sky'][:]))
-        loc_high = np.concatenate((fits_high[2]['RA'][:],fits_high[2]['DEC'][:]))
-        z_high = fits_high[2]['Z'][:]
-        fits_high.close()
-    if g[2]:
-        loc = np.vstack((loc_low,loc_mid,loc_high))
-        z = np.vstack((z_low,z_mid,z_high))
-        return gset.GhostSet(g, fiber, loc, z, f_mid, low = f_low, high = f_high)
-    elif g[0]:
-        loc = np.vstack((loc_low,loc_mid,None))
-        z = np.vstack((z_low,z_mid,None))
-        return gset.GhostSet(g, fiber, loc, z, f_mid, low = f_low)
+    mid = spec.SpecFile(mirror.get(finder.get_spec_path(plate,mjd,fiber)))
+    if valid[0]:
+        low = spec.SpecFile(mirror.get(finder.get_spec_path(plate,mjd,fiber-1)))
     else:
-        loc = np.vstack((None,loc_mid,loc_high))
-        z = np.vstack((None,z_mid,z_high))
-        return gset.GhostSet(g, fiber, loc, z, f_mid, high = f_high)
+        low = None
+    if valid[1]:
+        high = spec.SpecFile(mirror.get(finder.get_spec_path(plate,mjd,fiber+1)))
+    else:
+        high = None
+    return gset.GhostSet(valid, low, mid, high)
         
 def valid_fiber(fiber):
     """
@@ -73,13 +49,13 @@ def valid_fiber(fiber):
         fiber(int): fiber with flux high enough to create ghosts
     
     Return:
-        [bool]: [Valid fiber less than given, valid fiber greater than given, both valid]
+        [bool]: [Valid fiber less than given, valid fiber greater than given]
     
     Raises:
         gset.InvalidFiberError: fiber not an int in interval [1,1000]
     """
     
-    valid = [True, True, False]
+    valid = [True, True]
     if type(fiber) != int:
         raise gset.InvalidFiberError('Fiber number must be an integer between 1 and 1000')
     if fiber < 1 or fiber > 1000:
@@ -88,8 +64,6 @@ def valid_fiber(fiber):
         valid[0] = False
     elif fiber == 501 or fiber == 1:
         valid[0] = False
-    else:
-        valid[2] = True
     return valid
 
 def high_spikes(file_name):
