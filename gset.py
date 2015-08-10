@@ -218,6 +218,7 @@ class GhostSet:
             sep(bool): True if the plots are to be seperate, False otherwise
             wlen_range([int]): [min wavelength, max wavelength] in angstroms
         """
+        plt.figure(figsize = (10,9))
         try:
             self.plt_low(sep = sep, wlen_range = wlen_range)
         except InvalidFiberError:
@@ -359,6 +360,7 @@ class Spike(GhostSet):
             sky(bool): adds sky flux
             save(str): saves plot to filename given in string
         """
+        plt.figure(figsize = (10,9))
         plt.plot(self.low_wlen(),self.low_floor(),
                  label = 'fiber {}'.format(self.fiber()-1))
         plt.plot(self.mid_wlen(),coeff*10**-3*self.mid_floor(),
